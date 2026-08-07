@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitPit Lane Rental Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-icon">🏊</span>
+          <div>
+            <h1>FitPit Lane Rental</h1>
+            <p class="subtitle">Private swim lane availability — Kilo & Valkea talo</p>
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="price-badge">
+          <span class="price">€22</span>
+          <span class="price-label">/ 60 min</span>
+        </div>
+        <a class="btn btn-primary" href="https://shop.fitpit.fi/fitpit/reservations2/reservations/11/-/18/-/-/-?lang=1" target="_blank" rel="noopener">
+          Book on FitPit →
+        </a>
+      </div>
+    </header>
+
+    <section class="controls">
+      <div class="control-group">
+        <label for="days">Days ahead</label>
+        <select id="days">
+          <option value="7">7 days</option>
+          <option value="15" selected>15 days</option>
+          <option value="21">21 days</option>
+          <option value="30">30 days</option>
+          <option value="60">60 days</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="location">Location</label>
+        <select id="location">
+          <option value="">Both locations</option>
+          <option value="52">Kilo (Espoo)</option>
+          <option value="39">Valkea talo (Haaga)</option>
+        </select>
+      </div>
+      <div class="control-group toggle-group">
+        <label class="toggle">
+          <input type="checkbox" id="availableOnly">
+          <span>Available only</span>
+        </label>
+      </div>
+      <button class="btn btn-secondary" id="refreshBtn">↻ Refresh</button>
+      <span class="last-updated" id="lastUpdated"></span>
+    </section>
+
+    <section class="stats-grid" id="statsGrid"></section>
+
+    <section class="legend">
+      <span class="legend-item"><span class="legend-swatch available"></span> Available</span>
+      <span class="legend-item"><span class="legend-swatch unavailable"></span> Unavailable</span>
+      <span class="legend-item"><span class="legend-swatch kilo"></span> K = Kilo</span>
+      <span class="legend-item"><span class="legend-swatch valkea"></span> V = Valkea talo</span>
+    </section>
+
+    <section class="calendar-section">
+      <div class="calendar" id="calendar"></div>
+    </section>
+
+    <footer class="footer">
+      <p>Data sourced live from FitPit <code>apieventgroups</code> (same API as the website). Cached 2 min. Days beyond FitPit's published schedule show as <em>?</em>.</p>
+    </footer>
+  </div>
+
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <p>Fetching availability…</p>
+  </div>
+
+  <script src="/static/app.js?v=3"></script>
+</body>
+</html>

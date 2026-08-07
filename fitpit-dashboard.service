@@ -1,0 +1,13 @@
+[Unit]
+Description=FitPit Lane Rental Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/asad/projects/fitpit-dashboard
+ExecStart=/home/asad/projects/fitpit-dashboard/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 3003
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
