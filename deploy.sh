@@ -14,5 +14,6 @@ systemctl --user daemon-reload
 systemctl --user enable fitpit-dashboard.service
 systemctl --user restart fitpit-dashboard.service
 
+sleep 2
 echo "Deployed. Health:"
-curl -s http://127.0.0.1:3003/api/health
+curl -sf http://127.0.0.1:3003/api/health || { echo "Health check failed"; exit 1; }
