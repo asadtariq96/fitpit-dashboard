@@ -702,7 +702,7 @@ a.time-card:hover {
 
 .ml-slots {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 6px;
   padding: 6px 10px 10px;
 }
@@ -711,10 +711,15 @@ a.time-card:hover {
   grid-template-columns: auto auto 1fr auto;
   padding: 7px 9px;
   border-radius: 8px;
+  min-width: 0;
 }
 
 .ml-slots .time-card-time {
   font-size: 0.78rem;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ml-slots .time-card-detail {
@@ -724,6 +729,13 @@ a.time-card:hover {
 .ml-slots .time-card-price {
   font-size: 0.72rem;
   justify-self: end;
+}
+
+/* Phones: single-column chips so AM/PM ranges always fit */
+@media (max-width: 420px) {
+  .ml-slots {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -814,9 +826,5 @@ a.time-card:hover {
 
   .price {
     font-size: 1.1rem;
-  }
-
-  .ml-slots {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   }
 }
