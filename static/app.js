@@ -46,7 +46,23 @@ async function fetchAvailability() {
 
 function formatTime(iso) {
   const d = new Date(iso);
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+}
+
+/** "14:30" -> "2:30 PM" */
+function fmt12(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
+/** "14:30-15:30" -> "2:30-3:30 PM" (meridiem shown once when shared) */
+function fmtRange(range) {
+  const [a, b] = range.split("-");
+  if (!b) return fmt12(a);
+  const A = fmt12(a), B = fmt12(b);
+  return A.slice(-2) === B.slice(-2) ? `${A.slice(0, -3)}-${B}` : `${A}-${B}`;
 }
 
 function parseDate(iso) {
@@ -131,7 +147,7 @@ function renderStats(data) {
           ? `<span class="stat-from">from €${s.min_available_price_eur}</span>`
           : "";
         const next = s.next_available
-          ? `Next free <strong>${formatDayShort(s.next_available.date)} ${s.next_available.time_start}</strong>` +
+          ? `Next free <strong>${formatDayShort(s.next_available.date)} ${fmt12(s.next_available.time_start)}</strong>` +
             (s.next_available.price_eur != null ? ` · €${s.next_available.price_eur}` : "")
           : "No free slots in range";
         return `
@@ -174,12 +190,12 @@ function slotCard(slot, showLoc, bookingUrl) {
     ? `<span class="time-card-price">€${slot.price_eur}</span>`
     : "";
   const dur = slot.duration_min ? ` · ${slot.duration_min}min` : "";
-  const title = `${slot.locName} · ${slot.time_range}${dur} · ${
+  const title = `${slot.locName} · ${fmtRange(slot.time_range)}${dur} · ${
     slot.available ? slot.free + " free · €" + slot.price_eur : "Full"
   }${slot.promotion ? " · campaign price" : ""}`;
 
   const inner = `${prefix}
-    <span class="time-card-time">${slot.time_range}</span>
+    <span class="time-card-time">${fmtRange(slot.time_range)}</span>
     <span class="time-card-detail">${detail}</span>
     ${price}`;
 
