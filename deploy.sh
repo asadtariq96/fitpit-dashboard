@@ -3,6 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+git pull --ff-only origin master
+
 if [[ ! -d .venv ]]; then
   python3 -m venv .venv
 fi
