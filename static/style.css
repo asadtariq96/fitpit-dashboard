@@ -490,6 +490,10 @@ select {
   cursor: default;
 }
 
+.time-card.has-loc {
+  grid-template-columns: auto auto 1fr auto;
+}
+
 .time-card.available {
   background: var(--green-bg);
   border-color: rgba(52, 211, 153, 0.35);
@@ -507,6 +511,7 @@ select {
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .time-card-loc {
@@ -523,6 +528,61 @@ select {
   font-family: "JetBrains Mono", monospace;
   opacity: 0.85;
   text-align: right;
+}
+
+a.time-card {
+  text-decoration: none;
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+
+a.time-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(52, 211, 153, 0.25);
+}
+
+.time-card.promo .time-card-time::after {
+  content: " ★";
+  font-size: 0.55rem;
+  opacity: 0.9;
+}
+
+.time-card-price {
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.time-card.available .time-card-price {
+  color: var(--green);
+}
+
+.stat-from {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
+}
+
+.stat-next {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.stat-next strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.legend-swatch.promo {
+  background: var(--amber-bg);
+  border: 1px solid rgba(251, 191, 36, 0.45);
 }
 
 .empty-state {
@@ -582,6 +642,90 @@ select {
   to { transform: rotate(360deg); }
 }
 
+/* ---------- Mobile list view (<760px): day-grouped rows, no squeezed calendar ---------- */
+
+.mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ml-loc {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ml-loc-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ml-loc-head.kilo { box-shadow: inset 0 3px 0 var(--kilo); }
+.ml-loc-head.valkea { box-shadow: inset 0 3px 0 var(--valkea); }
+
+.ml-loc-head h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ml-loc-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ml-empty {
+  padding: 18px 14px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.ml-day + .ml-day {
+  border-top: 1px dashed var(--border);
+}
+
+.ml-day-head {
+  padding: 8px 14px 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ml-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  padding: 6px 10px 10px;
+}
+
+.ml-slots .time-card {
+  grid-template-columns: auto auto 1fr auto;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+
+.ml-slots .time-card-time {
+  font-size: 0.78rem;
+}
+
+.ml-slots .time-card-detail {
+  font-size: 0.68rem;
+}
+
+.ml-slots .time-card-price {
+  font-size: 0.72rem;
+  justify-self: end;
+}
+
 @media (max-width: 900px) {
   .cal-week,
   .cal-cell {
@@ -593,9 +737,57 @@ select {
   }
 }
 
-@media (max-width: 640px) {
-  .header {
-    flex-direction: column;
+/* ---------- Small tablets / large phones ---------- */
+@media (max-width: 760px) {
+  .app {
+    padding: 16px 12px 40px;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .logo-icon {
+    font-size: 1.7rem;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Calendar grid is unusable at this width — app.js swaps in .mobile-list */
+  .calendar:not(:has(.mobile-list)) {
+    display: none;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    margin-bottom: 24px;
+  }
+
+  .controls {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .controls .control-group {
+    flex: 1 1 45%;
+  }
+
+  .controls select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .toggle-group {
+    flex: 1 1 45%;
+  }
+
+  .toggle {
+    padding-top: 0;
+    height: 100%;
+    align-items: center;
   }
 
   .last-updated {
@@ -603,19 +795,28 @@ select {
     width: 100%;
   }
 
-  .cal-weekday {
-    font-size: 0.6rem;
-    padding: 8px 2px;
+  .legend {
+    gap: 10px;
+    font-size: 0.7rem;
+  }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 420px) {
+  .btn-primary {
+    padding: 8px 12px;
+    font-size: 0.8rem;
   }
 
-  .cal-cell {
-    padding: 4px 3px;
-    min-height: 90px;
+  .price-badge {
+    padding: 6px 10px;
   }
 
-  .cal-day-num {
-    font-size: 0.75rem;
-    width: 20px;
-    height: 20px;
+  .price {
+    font-size: 1.1rem;
+  }
+
+  .ml-slots {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   }
 }

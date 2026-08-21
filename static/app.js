@@ -13,15 +13,18 @@ function selFor(el) {
 
 const els = {};
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MOBILE_MQ = window.matchMedia("(max-width: 760px)");
 
 function initElements() {
   const ids = [
     "days", "location", "availableOnly", "refreshBtn",
     "lastUpdated", "statsGrid", "calendar", "loading",
+    "priceValue", "priceLabel",
   ];
   for (const id of ids) {
     els[id] = $(`#${id}`);
-    if (!els[id]) console.error(`FitPit dashboard: missing #${id}`);
+    if (!els[id] && !["priceValue", "priceLabel"].includes(id))
+      console.error(`FitPit dashboard: missing #${id}`);
   }
 }
 
@@ -56,6 +59,15 @@ function toISO(d) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** "Fri 21.8." */
+function formatDayShort(iso) {
+  return parseDate(iso).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "numeric",
+  });
 }
 
 /** Monday = 0 … Sunday = 6 */
@@ -97,6 +109,14 @@ function buildWeekGrid(calendarDays) {
   return weeks;
 }
 
+function renderPriceBadge(data) {
+  if (!els.priceValue) return;
+  if (data.min_price_eur != null) {
+    els.priceValue.textContent = `€${data.min_price_eur}`;
+    if (els.priceLabel) els.priceLabel.textContent = "from / slot";
+  }
+}
+
 function renderStats(data) {
   setHTML(
     els.statsGrid,
@@ -106,6 +126,14 @@ function renderStats(data) {
         if (loc.error) {
           return `<div class="stat-card ${cls}"><div class="error-state">${loc.name}: ${loc.error}</div></div>`;
         }
+        const s = loc.stats;
+        const from = s.min_available_price_eur != null
+          ? `<span class="stat-from">from €${s.min_available_price_eur}</span>`
+          : "";
+        const next = s.next_available
+          ? `Next free <strong>${formatDayShort(s.next_available.date)} ${s.next_available.time_start}</strong>` +
+            (s.next_available.price_eur != null ? ` · €${s.next_available.price_eur}` : "")
+          : "No free slots in range";
         return `
           <div class="stat-card ${cls}">
             <div class="stat-card-header">
@@ -113,43 +141,56 @@ function renderStats(data) {
                 <h3>${loc.name}</h3>
                 <div class="city">${loc.city}</div>
               </div>
+              ${from}
             </div>
             <div class="stat-numbers">
               <div class="stat-item">
-                <div class="stat-value green">${loc.stats.available}</div>
+                <div class="stat-value green">${s.available}</div>
                 <div class="stat-label">Available</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value red">${loc.stats.full}</div>
+                <div class="stat-value red">${s.full}</div>
                 <div class="stat-label">Unavailable</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value amber">${loc.stats.total_free_lanes}</div>
+                <div class="stat-value amber">${s.total_free_lanes}</div>
                 <div class="stat-label">Free lanes</div>
               </div>
             </div>
+            <div class="stat-next">${next}</div>
           </div>`;
       })
       .join("")
   );
 }
 
-function slotCard(slot, showLoc) {
+function slotCard(slot, showLoc, bookingUrl) {
   const cls = slot.available ? "available" : "unavailable";
+  const promo = slot.promotion ? " promo" : "";
   const locCls = LOC_CLASS[slot.location_id] || "";
   const prefix = showLoc ? `<span class="time-card-loc ${locCls}">${LOC_SHORT[slot.location_id] || "?"}</span>` : "";
-  const detail = slot.available ? slot.free : "×";
-  const title = `${slot.locName} · ${slot.time_range} · ${slot.available ? slot.free + " lanes" : "Full"}`;
+  const detail = slot.available ? `×${slot.free}` : "×";
+  const price = slot.available && slot.price_eur != null
+    ? `<span class="time-card-price">€${slot.price_eur}</span>`
+    : "";
+  const dur = slot.duration_min ? ` · ${slot.duration_min}min` : "";
+  const title = `${slot.locName} · ${slot.time_range}${dur} · ${
+    slot.available ? slot.free + " free · €" + slot.price_eur : "Full"
+  }${slot.promotion ? " · campaign price" : ""}`;
 
-  return `
-    <div class="time-card ${cls}" title="${title}">
-      ${prefix}
-      <span class="time-card-time">${slot.time_start.slice(0, 5)}</span>
-      <span class="time-card-detail">${detail}</span>
-    </div>`;
+  const inner = `${prefix}
+    <span class="time-card-time">${slot.time_range}</span>
+    <span class="time-card-detail">${detail}</span>
+    ${price}`;
+
+  const locClass = showLoc ? " has-loc" : "";
+  if (slot.available && bookingUrl) {
+    return `<a class="time-card ${cls}${promo}${locClass}" href="${bookingUrl}" target="_blank" rel="noopener" title="${title}">${inner}</a>`;
+  }
+  return `<div class="time-card ${cls}${promo}${locClass}" title="${title}">${inner}</div>`;
 }
 
-function renderDayCell(cell, slotsByDate, today, showBoth) {
+function renderDayCell(cell, slotsByDate, today, showBoth, bookingUrl) {
   if (!cell.inRange) {
     return `<div class="cal-cell cal-cell--pad"><span class="cal-day-num muted">${cell.dayNum}</span></div>`;
   }
@@ -166,7 +207,7 @@ function renderDayCell(cell, slotsByDate, today, showBoth) {
       ? `<div class="cal-cell-empty">—</div>`
       : `<div class="cal-cell-empty unpublished">?</div>`;
   } else {
-    body = `<div class="cal-cell-slots">${slots.map((s) => slotCard(s, showBoth)).join("")}</div>`;
+    body = `<div class="cal-cell-slots">${slots.map((s) => slotCard(s, showBoth, bookingUrl)).join("")}</div>`;
   }
 
   const avail = slots.filter((s) => s.available).length;
@@ -181,7 +222,7 @@ function renderDayCell(cell, slotsByDate, today, showBoth) {
     </div>`;
 }
 
-function renderCalendar(data) {
+function renderCalendarInner(data) {
   const today = toISO(new Date());
   const hideUnavailable = els.availableOnly.checked;
   const showBoth = !els.location.value;
@@ -210,19 +251,16 @@ function renderCalendar(data) {
   const weekRows = weeks
     .map(
       (week) =>
-        `<div class="cal-week">${week.map((cell) => renderDayCell(cell, slotsByDate, today, showBoth)).join("")}</div>`
+        `<div class="cal-week">${week.map((cell) => renderDayCell(cell, slotsByDate, today, showBoth, data.booking_url)).join("")}</div>`
     )
     .join("");
 
-  setHTML(
-    els.calendar,
-    `
+  return `
     <div class="cal-month-label">${monthLabel}</div>
     <div class="cal-grid">
       <div class="cal-weekdays">${weekdayHeader}</div>
       <div class="cal-weeks">${weekRows}</div>
-    </div>`
-  );
+    </div>`;
 }
 
 function formatMonthLabel(calendarDays) {
@@ -236,11 +274,55 @@ function formatMonthLabel(calendarDays) {
   return `${first.toLocaleDateString("en-GB", { month: "short" })} – ${fmt(last)}`;
 }
 
-function render(data) {
-  renderStats(data);
-  renderCalendar(data);
+/** Phone layout: per-location day list instead of a squeezed calendar. */
+function renderMobileList(data) {
+  const hideUnavailable = els.availableOnly.checked;
+  const showLoc = !els.location.value;
+  const sections = [];
+
+  for (const loc of data.locations) {
+    if (loc.error) continue;
+    const slots = loc.slots.filter((s) => !hideUnavailable || s.available);
+    const days = [];
+    const byDate = new Map();
+    for (const s of slots) {
+      if (!byDate.has(s.date)) { byDate.set(s.date, []); days.push(s.date); }
+      byDate.get(s.date).push(s);
+    }
+
+    sections.push(`
+      <div class="ml-loc">
+        <div class="ml-loc-head ${LOC_CLASS[loc.location_id] || ""}">
+          <h3>${loc.name}</h3>
+          <span class="ml-loc-sub">${loc.city} · ${loc.stats.available} available</span>
+        </div>
+        ${
+          slots.length === 0
+            ? `<div class="ml-empty">No slots in range${hideUnavailable ? " (available only)" : ""}</div>`
+            : days
+                .map((date) => `
+                  <div class="ml-day">
+                    <div class="ml-day-head">${formatDayShort(date)}</div>
+                    <div class="ml-slots">${byDate.get(date).map((s) => slotCard(s, showLoc, data.booking_url)).join("")}</div>
+                  </div>`)
+                .join("")
+        }
+      </div>`);
+  }
+  return `<div class="mobile-list">${sections.join("")}</div>`;
+}
+
+let lastData = null;
+
+function render() {
+  if (!lastData) return;
+  renderPriceBadge(lastData);
+  renderStats(lastData);
+  setHTML(els.calendar, MOBILE_MQ.matches
+    ? renderMobileList(lastData)
+    : renderCalendarInner(lastData));
   if (els.lastUpdated) {
-    els.lastUpdated.textContent = `Updated ${formatTime(data.fetched_at)}`;
+    els.lastUpdated.textContent = `Updated ${formatTime(lastData.fetched_at)}`;
   }
 }
 
@@ -252,8 +334,8 @@ function showError(message) {
 async function load() {
   if (els.loading) els.loading.classList.remove("hidden");
   try {
-    const data = await fetchAvailability();
-    render(data);
+    lastData = await fetchAvailability();
+    render();
   } catch (err) {
     console.error(err);
     showError(`Failed to load: ${err.message}`);
@@ -271,8 +353,11 @@ function boot() {
 
   els.days.addEventListener("change", load);
   els.location.addEventListener("change", load);
-  els.availableOnly.addEventListener("change", load);
+  els.availableOnly.addEventListener("change", () => render());
   els.refreshBtn.addEventListener("click", load);
+
+  // Re-render on breakpoint crossings so mobile ↔ desktop stays correct.
+  MOBILE_MQ.addEventListener("change", render);
 
   load();
   setInterval(load, 5 * 60 * 1000);

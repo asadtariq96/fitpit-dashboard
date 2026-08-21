@@ -53,7 +53,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_cache: dict[str, Any] = {"groups": None, "fetched_at": 0.0}
+_cache: dict[str, Any] = {"key": None, "groups": None, "fetched_at": 0.0}
 
 
 def fetch_event_groups(location_ids: list[int]) -> list[dict[str, Any]]:
@@ -78,7 +78,7 @@ def fetch_event_groups(location_ids: list[int]) -> list[dict[str, Any]]:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "FitPit-Dashboard/1.0",
+            "User-Agent": "Mozilla/5.0 (compatible; FitPit-Dashboard/1.1)",
             "Accept": "application/json",
             "X-Requested-With": "XMLHttpRequest",
         },
@@ -92,43 +92,71 @@ def fetch_event_groups(location_ids: list[int]) -> list[dict[str, Any]]:
     return groups
 
 
+def _slot_price_eur(group: dict[str, Any]) -> float | None:
+    """Cheapest fare product price (cents) -> euros."""
+    fares = group.get("fare_products") or []
+    prices = [f.get("price") for f in fares if isinstance(f.get("price"), (int, float))]
+    if not prices:
+        return None
+    return round(min(prices) / 100, 2)
+
+
 def flatten_lane_slots(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert apieventgroups payload into flat slot records."""
+    """Convert apieventgroups payload into flat slot records.
+
+    2026-08 API change: FitPit no longer populates ``reservation_events`` —
+    each event group IS one bookable slot now, with start/end/capacity/
+    reserved/free at the group level and pricing in ``fare_products``.
+    """
     slots: list[dict[str, Any]] = []
     for group in groups:
         if group.get("reservation_group_id") != GROUP_ID:
             continue
         name = group.get("name") or group.get("reservation_group_name") or ""
-        if "Uimaradan vuokraus" not in name:
+        group_name = group.get("reservation_group_name") or ""
+        if (
+            "Uimaradan vuokraus" not in name
+            and "Uimaradan vuokraus" not in group_name
+        ):
+            continue
+        # Staff lifeguard-scheduling blocks: not bookable slots.
+        if "valvonta" in name.lower():
             continue
 
-        for event in group.get("reservation_events") or []:
-            time_start = event.get("time_start")
-            time_end = event.get("time_end")
-            location_id = event.get("location_id") or group.get("location_id")
-            if not time_start or not time_end or location_id not in LOCATIONS:
-                continue
+        time_start = group.get("start")
+        time_end = group.get("end")
+        location_id = group.get("location_id")
+        capacity = group.get("capacity", 0) or 0
+        if not time_start or not time_end or location_id not in LOCATIONS:
+            continue
+        if capacity <= 0:
+            continue
 
-            dt_start = datetime.strptime(time_start, "%Y-%m-%d %H:%M:%S")
-            dt_end = datetime.strptime(time_end, "%Y-%m-%d %H:%M:%S")
-            free = event.get("free", 0) or 0
+        dt_start = datetime.strptime(time_start, "%Y-%m-%d %H:%M:%S")
+        dt_end = datetime.strptime(time_end, "%Y-%m-%d %H:%M:%S")
+        free = group.get("free", 0) or 0
+        price_eur = _slot_price_eur(group)
+        duration_min = int((dt_end - dt_start).total_seconds() // 60)
 
-            slots.append(
-                {
-                    "event_id": event.get("reservation_event_id"),
-                    "location_id": location_id,
-                    "date": dt_start.date().isoformat(),
-                    "weekday": dt_start.strftime("%a"),
-                    "time_start": dt_start.strftime("%H:%M"),
-                    "time_end": dt_end.strftime("%H:%M"),
-                    "time_range": f"{dt_start.strftime('%H:%M')}-{dt_end.strftime('%H:%M')}",
-                    "free": free,
-                    "capacity": event.get("capacity", 0) or 0,
-                    "reserved": event.get("reserved", 0) or 0,
-                    "available": free > 0,
-                    "promotion": "Kesälomatarjous" in name,
-                }
-            )
+        slots.append(
+            {
+                "event_id": group.get("reservation_event_group_id"),
+                "location_id": location_id,
+                "date": dt_start.date().isoformat(),
+                "weekday": dt_start.strftime("%a"),
+                "time_start": dt_start.strftime("%H:%M"),
+                "time_end": dt_end.strftime("%H:%M"),
+                "time_range": f"{dt_start.strftime('%H:%M')}-{dt_end.strftime('%H:%M')}",
+                "duration_min": duration_min,
+                "free": free,
+                "capacity": capacity,
+                "reserved": group.get("reserved", 0) or 0,
+                "available": free > 0,
+                "price_eur": price_eur,
+                "promotion": "tarjous" in name.lower(),
+                "name": name,
+            }
+        )
 
     slots.sort(key=lambda s: (s["date"], s["location_id"], s["time_start"]))
     return slots
@@ -206,6 +234,8 @@ def get_availability(
         slots = filter_slots(all_slots, loc_id, start, end, available_only)
         available_count = sum(1 for s in slots if s["available"])
         full_count = sum(1 for s in slots if not s["available"])
+        available_prices = [s["price_eur"] for s in slots if s["available"] and s["price_eur"]]
+        next_available = next((s for s in slots if s["available"]), None)
 
         by_date: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for slot in slots:
@@ -239,6 +269,16 @@ def get_availability(
                     "available": available_count,
                     "full": full_count,
                     "total_free_lanes": sum(s["free"] for s in slots if s["available"]),
+                    "min_available_price_eur": min(available_prices) if available_prices else None,
+                    "next_available": (
+                        {
+                            "date": next_available["date"],
+                            "time_start": next_available["time_start"],
+                            "price_eur": next_available["price_eur"],
+                        }
+                        if next_available
+                        else None
+                    ),
                 },
             }
         )
@@ -268,6 +308,10 @@ def get_availability(
             }
         calendar_days.append(day_entry)
 
+    all_available_prices = [
+        s["price_eur"] for s in all_slots if s["available"] and s["price_eur"]
+    ]
+
     return {
         "fetched_at": datetime.now().isoformat(timespec="seconds"),
         "date_range": {
@@ -277,8 +321,8 @@ def get_availability(
         },
         "max_published_date": max_published,
         "total_slots_in_api": len(all_slots),
-        "price_eur": 22.0,
-        "price_note": "Kesälomatarjous — 60 min lane rental",
+        "min_price_eur": min(all_available_prices) if all_available_prices else None,
+        "price_note": "Per-slot pricing — campaign (tarjous) slots are cheaper",
         "booking_url": BOOKING_URL,
         "locations": results,
         "calendar": calendar_days,
