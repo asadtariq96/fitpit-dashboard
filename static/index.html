@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=5">
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
   <div class="app">
@@ -17,7 +17,7 @@
           <span class="logo-icon">🏊</span>
           <div>
             <h1>FitPit Lane Rental</h1>
-            <p class="subtitle">Private swim lane availability — Kilo & Valkea talo</p>
+            <p class="subtitle">Private swim lane availability — Kilo &amp; Valkea talo</p>
           </div>
         </div>
       </div>
@@ -58,11 +58,11 @@
           <span>Available only</span>
         </label>
       </div>
-      <button class="btn btn-secondary" id="refreshBtn">↻ Refresh</button>
-      <span class="last-updated" id="lastUpdated"></span>
+      <div class="controls-right">
+        <button class="btn btn-secondary" id="refreshBtn">↻ Refresh</button>
+        <span class="last-updated" id="lastUpdated"></span>
+      </div>
     </section>
-
-    <section class="stats-grid" id="statsGrid"></section>
 
     <section class="legend">
       <span class="legend-item"><span class="legend-swatch available"></span> Available</span>
@@ -86,6 +86,6 @@
     <p>Fetching availability…</p>
   </div>
 
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

@@ -4,17 +4,17 @@
   --bg-hover: #1a2438;
   --border: #243049;
   --text: #e8edf5;
-  --text-muted: #8b9bb4;
+  --text-muted: #a5b3c9;
   --accent: #22d3ee;
   --accent-dim: #0891b2;
   --green: #34d399;
   --green-bg: rgba(52, 211, 153, 0.12);
-  --red: #f87171;
+  --red: #fca5a5;
   --red-bg: rgba(248, 113, 113, 0.12);
   --amber: #fbbf24;
   --amber-bg: rgba(251, 191, 36, 0.12);
   --kilo: #38bdf8;
-  --valkea: #a78bfa;
+  --valkea: #c4b5fd;
   --radius: 12px;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
@@ -216,80 +216,24 @@ select {
 }
 
 .last-updated {
-  margin-left: auto;
   font-size: 0.78rem;
   color: var(--text-muted);
   align-self: center;
   font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
+/* #3: amber warning when data is stale (upstream down / fetch failing) */
+.last-updated.stale {
+  color: var(--amber);
 }
 
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  box-shadow: var(--shadow);
-}
-
-.stat-card.kilo {
-  border-top: 3px solid var(--kilo);
-}
-
-.stat-card.valkea {
-  border-top: 3px solid var(--valkea);
-}
-
-.stat-card-header {
+/* #12: keep Refresh and its timestamp grouped on the right */
+.controls-right {
+  margin-left: auto;
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 12px;
-}
-
-.stat-card h3 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.stat-card .city {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.stat-numbers {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-family: "JetBrains Mono", monospace;
-  line-height: 1.2;
-}
-
-.stat-value.green { color: var(--green); }
-.stat-value.red { color: var(--red); }
-.stat-value.amber { color: var(--amber); }
-
-.stat-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 2px;
+  align-items: center;
+  gap: 12px;
 }
 
 .calendar-section {
@@ -349,7 +293,55 @@ select {
   font-weight: 700;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
+
+/* #6: clickable "next free" chips that jump to the day cell */
+.nextfree-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nextfree-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.nextfree-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-dim);
+}
+
+.nextfree-chip .nextfree-value {
+  color: var(--text);
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.nextfree-chip .nextfree-price {
+  color: var(--accent);
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+}
+
+.nextfree-chip.kilo .nextfree-value { color: var(--kilo); }
+.nextfree-chip.valkea .nextfree-value { color: var(--valkea); }
 
 .cal-grid {
   display: flex;
@@ -416,6 +408,30 @@ select {
   background: rgba(0, 0, 0, 0.1);
 }
 
+/* Past days recede; today still gets the accent ring */
+.cal-cell--past {
+  opacity: 0.45;
+}
+
+/* #6: brief highlight when jumped to from a "next free" chip */
+.cal-cell.flash {
+  animation: cell-flash 1.6s ease-out;
+}
+
+@keyframes cell-flash {
+  0% { box-shadow: inset 0 0 0 3px var(--accent); background: rgba(34, 211, 238, 0.14); }
+  100% { box-shadow: inset 0 0 0 2px rgba(34, 211, 238, 0); background: var(--bg-card); }
+}
+
+.cal-cell--today.flash {
+  animation: cell-flash-today 1.6s ease-out;
+}
+
+@keyframes cell-flash-today {
+  0% { box-shadow: inset 0 0 0 3px var(--accent), 0 0 18px rgba(34, 211, 238, 0.4); background: rgba(34, 211, 238, 0.14); }
+  100% { box-shadow: inset 0 0 0 2px rgba(34, 211, 238, 0.35); background: rgba(34, 211, 238, 0.06); }
+}
+
 .cal-cell-head {
   display: flex;
   justify-content: space-between;
@@ -471,7 +487,19 @@ select {
   justify-content: center;
   color: var(--text-muted);
   font-size: 0.85rem;
-  opacity: 0.5;
+  opacity: 0.75;
+}
+
+/* #11: empty cells explain themselves */
+.cal-cell-empty:not(.unpublished) {
+  font-size: 0.62rem;
+  font-family: "JetBrains Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px dashed rgba(139, 155, 180, 0.25);
+  border-radius: 6px;
+  margin: 2px 1px;
+  padding: 4px 2px;
 }
 
 .cal-cell-empty.unpublished {
@@ -504,6 +532,7 @@ select {
   background: var(--red-bg);
   border-color: rgba(248, 113, 113, 0.3);
   color: var(--red);
+  opacity: 0.72;
 }
 
 .time-card-time {
@@ -540,10 +569,9 @@ a.time-card:hover {
   box-shadow: 0 2px 10px rgba(52, 211, 153, 0.25);
 }
 
-.time-card.promo .time-card-time::after {
-  content: " ★";
-  font-size: 0.55rem;
-  opacity: 0.9;
+/* #9: promo chips get an amber left edge instead of a tiny star */
+.time-card.promo.available {
+  border-left: 3px solid var(--amber);
 }
 
 .time-card-price {
@@ -557,27 +585,6 @@ a.time-card:hover {
 
 .time-card.available .time-card-price {
   color: var(--green);
-}
-
-.stat-from {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--accent);
-  font-family: "JetBrains Mono", monospace;
-  white-space: nowrap;
-}
-
-.stat-next {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.stat-next strong {
-  color: var(--text);
-  font-weight: 600;
 }
 
 .legend-swatch.promo {
@@ -731,6 +738,15 @@ a.time-card:hover {
   justify-self: end;
 }
 
+/* #6: next-free chips on mobile live under the location header */
+.ml-loc .nextfree-chip {
+  margin: 8px 14px 0;
+}
+
+.ml-day.flash {
+  animation: cell-flash 1.6s ease-out;
+}
+
 /* Phones: single-column chips so AM/PM ranges always fit */
 @media (max-width: 420px) {
   .ml-slots {
@@ -773,11 +789,6 @@ a.time-card:hover {
     display: none;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
-    margin-bottom: 24px;
-  }
-
   .controls {
     padding: 12px;
     gap: 10px;
@@ -802,9 +813,14 @@ a.time-card:hover {
     align-items: center;
   }
 
-  .last-updated {
+  .controls-right {
     margin-left: 0;
     width: 100%;
+    justify-content: space-between;
+  }
+
+  .last-updated {
+    white-space: normal;
   }
 
   .legend {

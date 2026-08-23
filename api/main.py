@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,6 +22,18 @@ FITPIT_GROUPS_URL = "https://shop.fitpit.fi/fitpit/reservations2/apieventgroups"
 SERVICE_ID = 11
 GROUP_ID = 18  # Uimaradan vuokraus (lane rental)
 CACHE_TTL_SECONDS = 120
+
+# Deep-linkable booking page. FitPit's Angular route is
+# reservations/:service_id/:location_ids/:group_ids/... — a location id in
+# segment 2 pre-filters the shop to that venue (verified 2026-08). There is no
+# date parameter in the route table.
+BOOKING_URL_BASE = (
+    "https://shop.fitpit.fi/fitpit/reservations2/reservations/{loc_placeholder}"
+    "/-/18/-/-/-?lang=1"
+)
+BOOKING_URL_ALL = (
+    "https://shop.fitpit.fi/fitpit/reservations2/reservations/11/-/18/-/-/-?lang=1"
+)
 
 LOCATIONS: dict[int, dict[str, str]] = {
     52: {
@@ -41,19 +52,22 @@ LOCATIONS: dict[int, dict[str, str]] = {
     },
 }
 
-BOOKING_URL = (
-    "https://shop.fitpit.fi/fitpit/reservations2/reservations/11/-/18/-/-/-?lang=1"
-)
+
+def booking_url_for(location_id: int | None) -> str:
+    """Shop URL pre-filtered to one location, or the all-locations page."""
+    if location_id is None or location_id not in LOCATIONS:
+        return BOOKING_URL_ALL
+    return BOOKING_URL_BASE.format(loc_placeholder=str(location_id))
+
 
 app = FastAPI(title="FitPit Lane Rental Dashboard")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-_cache: dict[str, Any] = {"key": None, "groups": None, "fetched_at": 0.0}
+_cache: dict[str, Any] = {
+    "key": None,
+    "groups": None,
+    "fetched_at": 0.0,
+    "last_good": None,  # last successful availability payload (stale fallback)
+}
 
 
 def fetch_event_groups(location_ids: list[int]) -> list[dict[str, Any]]:
@@ -83,7 +97,7 @@ def fetch_event_groups(location_ids: list[int]) -> list[dict[str, Any]]:
             "X-Requested-With": "XMLHttpRequest",
         },
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         groups = json.loads(resp.read())
 
     _cache["key"] = cache_key
@@ -190,7 +204,7 @@ def health() -> dict[str, str]:
 @app.get("/api/locations")
 def get_locations() -> list[dict[str, Any]]:
     return [
-        {"id": loc_id, **meta, "booking_url": BOOKING_URL}
+        {"id": loc_id, **meta, "booking_url": booking_url_for(loc_id)}
         for loc_id, meta in LOCATIONS.items()
     ]
 
@@ -200,7 +214,7 @@ def get_availability(
     days: int = Query(default=15, ge=1, le=90),
     available_only: bool = Query(default=False),
     location_id: int | None = Query(default=None),
-) -> dict[str, Any]:
+):
     start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=days)
     target_locations = (
@@ -208,22 +222,41 @@ def get_availability(
         if location_id is not None and location_id in LOCATIONS
         else LOCATIONS
     )
+    range_meta = {
+        "start": start.date().isoformat(),
+        "end": (end - timedelta(days=1)).date().isoformat(),
+        "days": days,
+    }
 
     try:
         all_groups = fetch_event_groups(list(LOCATIONS.keys()))
         all_slots = flatten_lane_slots(all_groups)
     except Exception as exc:
-        return {
-            "fetched_at": datetime.now().isoformat(timespec="seconds"),
-            "error": str(exc),
-            "date_range": {
-                "start": start.date().isoformat(),
-                "end": (end - timedelta(days=1)).date().isoformat(),
-                "days": days,
+        # Upstream failed: serve the last good payload marked stale instead of
+        # blanking the dashboard. Client distinguishes via HTTP status.
+        stale = _cache.get("last_good")
+        if isinstance(stale, dict) and stale.get("locations"):
+            payload = dict(stale)
+            payload["stale"] = True
+            payload["fetched_at"] = datetime.now().isoformat(timespec="seconds")
+            payload["error"] = f"upstream unavailable — showing cached data ({exc})"
+            payload["date_range"] = range_meta
+            return JSONResponse(
+                status_code=503,
+                content=payload,
+                headers={"Cache-Control": "no-store"},
+            )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "fetched_at": datetime.now().isoformat(timespec="seconds"),
+                "error": str(exc),
+                "date_range": range_meta,
+                "locations": [],
+                "calendar": [],
             },
-            "locations": [],
-            "calendar": [],
-        }
+            headers={"Cache-Control": "no-store"},
+        )
 
     max_published = max((s["date"] for s in all_slots), default=None)
 
@@ -261,7 +294,7 @@ def get_availability(
             {
                 "location_id": loc_id,
                 **meta,
-                "booking_url": BOOKING_URL,
+                "booking_url": booking_url_for(loc_id),
                 "slots": slots,
                 "by_date": dict(by_date),
                 "stats": {
@@ -312,21 +345,30 @@ def get_availability(
         s["price_eur"] for s in all_slots if s["available"] and s["price_eur"]
     ]
 
-    return {
+    payload = {
         "fetched_at": datetime.now().isoformat(timespec="seconds"),
-        "date_range": {
-            "start": start.date().isoformat(),
-            "end": (end - timedelta(days=1)).date().isoformat(),
-            "days": days,
-        },
+        "date_range": range_meta,
         "max_published_date": max_published,
         "total_slots_in_api": len(all_slots),
         "min_price_eur": min(all_available_prices) if all_available_prices else None,
         "price_note": "Per-slot pricing — campaign (tarjous) slots are cheaper",
-        "booking_url": BOOKING_URL,
+        "booking_url": BOOKING_URL_ALL,
         "locations": results,
         "calendar": calendar_days,
     }
+
+    # Remember last successful full payload (both locations, unfiltered) so an
+    # upstream outage can still be served as stale data.
+    if len(target_locations) == len(LOCATIONS) and not available_only:
+        _cache["last_good"] = payload
+
+    return Response(
+        content=json.dumps(payload),
+        media_type="application/json",
+        headers={
+            "Cache-Control": "public, max-age=60, stale-while-revalidate=120",
+        },
+    )
 
 
 @app.get("/")
